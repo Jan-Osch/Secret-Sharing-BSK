@@ -1,3 +1,4 @@
+import hashlib
 import math
 
 
@@ -19,25 +20,30 @@ class Cipher(object):
     def encode_character(char, key):
         return chr((ord(char) + key) % 256)
 
-    def normalize_key(self, key):
+    @staticmethod
+    def normalize_key(key):
         if isinstance(key, str):
             return sum([ord(c) for c in key])
         return key
 
 
 def hash_function(m):
-    result = 17
-    a = 0.1731
-    maximum = 41930113
-    for char in m:
-        result += hash_integer(ord(char), a, maximum)
-    final = str(hash_integer(result, a, maximum))
-    intended = len(str(maximum))
-    return '0' * (intended - len(final)) + final
+    return hashlib.md5(m).hexdigest()
 
 
-def hash_integer(integer, a, m):
-    return int(math.floor((integer * a % 1) * m))
+# def hash_function(m):
+#     result = 17
+#     a = 0.1731
+#     maximum = 41930113
+#     for char in m:
+#         result += hash_integer(ord(char), a, maximum)
+#     final = str(hash_integer(result, a, maximum))
+#     intended = len(str(maximum))
+#     return '0' * (intended - len(final)) + final
+
+
+# def hash_integer(integer, a, m):
+#     return int(math.floor((integer * a % 1) * m))
 
 
 def hash_n_times(content, times):

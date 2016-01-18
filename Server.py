@@ -7,7 +7,7 @@ from Utils import hash_function, Cipher
 class AbstractEntity(threading.Thread):
     def __init__(self):
         super(AbstractEntity, self).__init__()
-        self.timeout = 1000
+        self.timeout = 5
         self.error_signal = 'ERROR'
         self.ok_signal = 'OK'
 
@@ -60,8 +60,8 @@ class Server(AbstractEntity):
 
     def check_if_complete(self):
         try:
-            if len(self.confirmed) == len(self.passwords):
-                if all([self.validate_polynomial(pair[0], pair[1]) for pair in self.confirmed.values()]):
+            if len(self.confirmed) == len(self.polynomial):
+                if all([self.validate_point(pair[0], pair[1]) for pair in self.confirmed.values()]):
                     self.pass_signal_to_workers(self.ok_signal, number=len(self.confirmed))
                 else:
                     self.pass_signal_to_workers(self.error_signal, number=len(self.confirmed))
@@ -80,10 +80,14 @@ class Server(AbstractEntity):
     def login(self, client_id):
         self.logged.add(client_id)
 
-    def validate_polynomial(self, x, y):
-        return (self.polynomial[0] * x ** 2 +
-                self.polynomial[1] * x +
-                self.polynomial[2]) % self.p == y
+    def validate_point(self, x, y):
+        return self.compute_polynomial(x) % self.p == y
+
+    def compute_polynomial(self, x):
+        result = 0
+        for index, coefficient in enumerate(reversed(self.polynomial)):
+            result += coefficient * x ** index
+        return result
 
 
 class ServerWorker(AbstractEntity):
@@ -103,7 +107,12 @@ class ServerWorker(AbstractEntity):
                 client_id, client_encrypted = client_message
                 if self.parent.can_login(client_id):
                     client_decrypted = self.decrypt_message(client_id, client_encrypted)
-                    if self.is_decrypted_message_valid(client_id, client_decrypted):
+                    inner_id, inner_index, client_hash = client_decrypted.split(':')
+                    if self.is_decrypted_message_valid(client_id,
+                                                       id=inner_id,
+                                                       index=inner_index,
+                                                       hash=client_hash):
+                        self.update_data(client_id, inner_index, client_hash)
                         self.output_queue.put(self.create_encrypted_ok_message())
                         self.parent.login(client_id)
                         encrypted_confirmation = self.input_queue.get(timeout=self.timeout)
@@ -131,15 +140,19 @@ class ServerWorker(AbstractEntity):
         self.cipher = Cipher(self.keys.get(client_id))
         return self.cipher.decrypt(client_encrypted)
 
-    def is_decrypted_message_valid(self, client_id, client_decrypted):
+    def is_decrypted_message_valid(self, client_id, id, index, hash):
         try:
-            inner_id, inner_index, client_hash = client_decrypted.split(':')
-            return (inner_id == client_id and
-                    self.passwords.get(client_id)[2] == int(inner_index) and
-                    self.is_hashed_secret_valid(client_id, client_hash))
+            return (id == client_id and
+                    self.passwords.get(client_id)[2] == int(index) and
+                    self.passwords.get(client_id)[1] >= int(index) and
+                    self.is_hashed_secret_valid(client_id, hash))
         except:
             pass
         return False
 
     def decrypt_confirmation(self, encrypted_confirmation):
         return [int(coordinate) for coordinate in self.cipher.decrypt(encrypted_confirmation).split(':')]
+
+    def update_data(self, client_id, inner_index, client_hash):
+        k_value = self.passwords.get(client_id)[1]
+        self.passwords[client_id] = (client_hash, k_value, int(inner_index) + 1)
