@@ -37,7 +37,7 @@ class Client(AbstractEntity):
     def prepare_encrypted_message(self):
         message = '{0}:{1}:{2}'.format(self.name,
                                        self.index,
-                                       hash_n_times(self.h_0, self.K - 1))
+                                       hash_n_times(self.h_0, self.K - self.index))
         self.cipher = Cipher(self.key)
         return self.cipher.encrypt(message)
 
