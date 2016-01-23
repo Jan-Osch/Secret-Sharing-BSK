@@ -60,7 +60,7 @@ class Server(AbstractEntity):
 
     def check_if_complete(self):
         try:
-            if len(self.confirmed) == len(self.polynomial):
+            if len(set([tuple(pair) for pair in self.confirmed.values()])) == len(self.polynomial):
                 if all([self.validate_point(pair[0], pair[1]) for pair in self.confirmed.values()]):
                     self.pass_signal_to_workers(self.ok_signal, number=len(self.confirmed))
                 else:
